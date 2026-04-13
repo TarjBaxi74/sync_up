@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fact Tables, Dimension Tables & Schema Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0D0E11;
+  --surface: #13151A;
+  --surface2: #1A1D25;
+  --surface3: #21252F;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #E8E9EE;
+  --muted: #6B7080;
+  --dim: #3D4250;
+  --purple: #7C6FE0;
+  --purple-light: #A99EEE;
+  --purple-bg: rgba(124,111,224,0.08);
+  --purple-dim: rgba(124,111,224,0.14);
+  --teal: #2EC4A0;
+  --teal-bg: rgba(46,196,160,0.07);
+  --teal-dim: rgba(46,196,160,0.14);
+  --amber: #E8A84A;
+  --amber-bg: rgba(232,168,74,0.07);
+  --amber-dim: rgba(232,168,74,0.14);
+  --coral: #E8715A;
+  --coral-bg: rgba(232,113,90,0.07);
+  --coral-dim: rgba(232,113,90,0.14);
+  --blue: #5AA4E8;
+  --blue-bg: rgba(90,164,232,0.07);
+  --blue-dim: rgba(90,164,232,0.14);
+  --green: #5ACE8A;
+  --green-bg: rgba(90,206,138,0.07);
+  --green-dim: rgba(90,206,138,0.14);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.6; }
+
+/* NAV */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,14,17,0.94); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; display: flex; align-items: center; gap: 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.topbar::-webkit-scrollbar { display: none; }
+.nav-brand {
+  font-family: 'DM Serif Display', serif; font-size: 15px; color: var(--text);
+  white-space: nowrap; margin-right: 2rem; padding: 14px 0; flex-shrink: 0;
+}
+.nav-brand span { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); display: block; letter-spacing: .08em; margin-top: 1px; }
+.nav-links { display: flex; gap: 0; flex: 1; min-width: 0; }
+.nav-btn {
+  padding: 14px 16px; font-size: 12px; font-family: 'DM Mono', monospace;
+  color: var(--muted); cursor: pointer; background: none; border: none;
+  white-space: nowrap; letter-spacing: .04em; transition: color .2s; position: relative; flex-shrink: 0;
+}
+.nav-btn::after { content: ''; position: absolute; bottom: 0; left: 16px; right: 16px; height: 1.5px; background: var(--purple); transform: scaleX(0); transition: transform .2s; }
+.nav-btn.active { color: var(--text); }
+.nav-btn.active::after { transform: scaleX(1); }
+.nav-btn:hover { color: var(--text); }
+
+/* HERO */
+.hero { padding: 3.5rem 2rem 2.5rem; max-width: 1100px; margin: 0 auto; }
+.hero-eyebrow { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
+.hero-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); flex-shrink: 0; }
+.hero-eyebrow span { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.hero h1 { font-family: 'DM Serif Display', serif; font-size: clamp(26px, 4vw, 42px); line-height: 1.12; letter-spacing: -.02em; margin-bottom: .7rem; }
+.hero h1 em { font-style: italic; color: var(--purple-light); }
+.hero-sub { font-size: 15px; color: var(--muted); max-width: 560px; line-height: 1.65; margin-bottom: 2rem; }
+.topic-strip { display: flex; align-items: center; gap: 0; flex-wrap: wrap; row-gap: 8px; }
+.tp-pill { font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 14px; border-radius: 3px; border: 1px solid var(--border2); color: var(--muted); background: var(--surface); cursor: pointer; transition: all .2s; letter-spacing: .04em; }
+.tp-pill:hover, .tp-pill.active { border-color: var(--purple); color: var(--purple-light); background: var(--purple-bg); }
+.tp-arr { font-size: 12px; color: var(--dim); padding: 0 6px; }
+
+/* CONTENT */
+.content { max-width: 1100px; margin: 0 auto; padding: 0 2rem 4rem; }
+.section { display: none; animation: fadeUp .3s ease; }
+.section.active { display: block; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* SECTION HEADER */
+.sec-header { padding: 2rem 0 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem; display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; }
+.sec-num { font-family: 'DM Mono', monospace; font-size: 48px; color: var(--surface3); line-height: 1; user-select: none; }
+.sec-tag { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .12em; color: var(--purple-light); text-transform: uppercase; margin-bottom: .4rem; }
+.sec-title { font-family: 'DM Serif Display', serif; font-size: 26px; line-height: 1.15; margin-bottom: .4rem; }
+.sec-desc { font-size: 13px; color: var(--muted); max-width: 580px; line-height: 1.65; }
+
+/* PROSE */
+.prose { font-size: 14px; color: var(--muted); line-height: 1.7; margin-bottom: 1rem; max-width: 680px; }
+.prose strong { color: var(--text); font-weight: 500; }
+
+/* ANALOGY */
+.analogy { margin: 1.25rem 0; padding: 1rem 1.25rem 1rem 1.5rem; border-left: 2px solid rgba(124,111,224,0.4); border-radius: 0 6px 6px 0; background: var(--purple-bg); }
+.analogy-lbl { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--purple-light); margin-bottom: .4rem; }
+.analogy p { font-size: 13px; color: var(--muted); line-height: 1.7; font-style: italic; }
+.analogy strong { color: var(--purple-light); font-style: normal; }
+
+/* SVG CARD */
+.svg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin: 1.25rem 0; overflow-x: auto; }
+.svg-cap { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-align: center; margin-top: .75rem; letter-spacing: .03em; }
+
+/* FACT TABLE ANATOMY */
+.anatomy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.25rem 0; }
+@media (max-width: 620px) { .anatomy-grid { grid-template-columns: 1fr; } }
+.anat-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.anat-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.anat-name { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; }
+.anat-badge { font-family: 'DM Mono', monospace; font-size: 9px; padding: 2px 7px; border-radius: 2px; letter-spacing: .06em; }
+.col-row { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 8px; padding: 6px 14px; font-family: 'DM Mono', monospace; font-size: 11px; border-bottom: 1px solid var(--border); align-items: center; }
+.col-row:last-child { border-bottom: none; }
+.col-row:nth-child(even) { background: rgba(255,255,255,0.015); }
+.key-tag { font-size: 9px; padding: 1px 5px; border-radius: 2px; text-align: center; font-weight: 500; }
+.pk { background: var(--amber-dim); color: var(--amber); }
+.fk { background: var(--blue-dim); color: var(--blue); }
+.col-name { color: var(--text); }
+.col-type { color: var(--muted); font-size: 10px; }
+.col-note { color: var(--dim); font-size: 10px; }
+
+/* FACT TYPES */
+.fact-types { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 1.25rem 0; }
+@media (max-width: 620px) { .fact-types { grid-template-columns: 1fr; } }
+.ft-card { border-radius: 8px; border: 1px solid var(--border); padding: .9rem 1rem; position: relative; overflow: hidden; }
+.ft-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.ft-card.c-purple::before { background: var(--purple); }
+.ft-card.c-teal::before { background: var(--teal); }
+.ft-card.c-amber::before { background: var(--amber); }
+.ft-name { font-size: 13px; font-weight: 500; margin-bottom: .35rem; }
+.ft-card.c-purple .ft-name { color: var(--purple-light); }
+.ft-card.c-teal   .ft-name { color: var(--teal); }
+.ft-card.c-amber  .ft-name { color: var(--amber); }
+.ft-desc { font-size: 12px; color: var(--muted); line-height: 1.55; margin-bottom: .5rem; }
+.ft-eg { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--dim); }
+
+/* COMPARISON TABLE */
+.cmp-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 1.25rem 0; }
+.cmp-header { display: grid; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.cmp-row-item { display: grid; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .12s; }
+.cmp-row-item:last-child { border-bottom: none; }
+.cmp-row-item:nth-child(even) { background: rgba(255,255,255,0.012); }
+.cmp-row-item:hover { background: var(--surface2); }
+.cmp-row-item.hl { background: var(--purple-bg); }
+.cmp-cell { padding: 9px 14px; font-size: 12px; border-right: 1px solid var(--border); }
+.cmp-cell:last-child { border-right: none; }
+.cmp-header .cmp-cell { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 10px 14px; }
+.cmp-row-item .cmp-cell:first-child { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.cmp-row-item.hl .cmp-cell { color: var(--purple-light); }
+.cmp-row-item.hl .cmp-cell:first-child { color: var(--purple-light); }
+.badge-pill { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 8px; border-radius: 3px; }
+.bp-fast { background: var(--teal-dim); color: var(--teal); }
+.bp-slow { background: var(--amber-dim); color: var(--amber); }
+.bp-low  { background: var(--green-dim); color: var(--green); }
+.bp-high { background: var(--coral-dim); color: var(--coral); }
+
+/* DIM TABLE CARDS */
+.dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 10px; margin: 1.25rem 0; }
+.dim-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.dim-card-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.dim-card-name { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; }
+.dim-card-badge { font-family: 'DM Mono', monospace; font-size: 9px; padding: 2px 7px; border-radius: 2px; }
+.dim-attr { padding: 5px 14px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+.dim-attr:last-child { border-bottom: none; }
+.dim-attr:nth-child(even) { background: rgba(255,255,255,0.015); }
+
+/* SCHEMA TOGGLE */
+.schema-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: fit-content; margin-bottom: 1.5rem; }
+.st-btn { padding: 9px 22px; font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); cursor: pointer; background: transparent; border: none; transition: all .15s; letter-spacing: .04em; }
+.st-btn.on { background: var(--purple); color: #fff; }
+.st-btn:hover:not(.on) { background: var(--surface2); color: var(--text); }
+.sv { display: none; }
+.sv.on { display: block; animation: fadeUp .25s ease; }
+
+/* SCHEMA PROPS */
+.schema-props { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 1rem; }
+.sp-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 12px; gap: 12px; }
+.sp-row:last-child { border-bottom: none; }
+.sp-row:nth-child(even) { background: rgba(255,255,255,0.012); }
+.sp-key { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+.sp-val { color: var(--muted); text-align: right; }
+
+/* WHEN TO USE */
+.when-list { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 1.25rem; }
+.when-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.when-row:last-child { border-bottom: none; }
+.when-row:nth-child(even) { background: rgba(255,255,255,0.012); }
+.wbadge { font-family: 'DM Mono', monospace; font-size: 10px; padding: 3px 9px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; margin-top: 1px; letter-spacing: .04em; }
+.wb-star { background: var(--purple-dim); color: var(--purple-light); }
+.wb-snow { background: var(--teal-dim); color: var(--teal); }
+.when-txt { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+/* QUERY SAMPLES */
+.query-block { border-radius: 7px; padding: 1rem 1.25rem; font-family: 'DM Mono', monospace; font-size: 11px; line-height: 1.9; margin: 10px 0; }
+.qb-purple { background: var(--purple-bg); border: 1px solid rgba(124,111,224,0.15); color: var(--purple-light); }
+.qb-teal   { background: var(--teal-bg);   border: 1px solid rgba(46,196,160,0.15);  color: var(--teal); }
+.kw { color: var(--blue); }
+.fn { color: var(--teal); }
+.str { color: var(--amber); }
+.cmt { color: var(--dim); font-style: italic; }
+
+/* TAKEAWAY */
+.tl { display: flex; flex-direction: column; gap: 0; margin-top: 1.25rem; }
+.tl-row { display: flex; gap: 1.25rem; padding: 1rem 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.tl-row:last-child { border-bottom: none; }
+.tl-num { font-family: 'DM Mono', monospace; font-size: 20px; color: var(--dim); min-width: 28px; line-height: 1.2; flex-shrink: 0; }
+.tl-body h4 { font-size: 14px; font-weight: 500; margin-bottom: .3rem; color: var(--text); }
+.tl-body p { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+/* DIVIDER */
+.rule { height: 1px; background: var(--border); margin: 2rem 0; }
+
+/* INFO STRIP */
+.info-strip { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 1.25rem 0; flex-wrap: wrap; }
+.is-cell { flex: 1; padding: 1rem 1.25rem; border-right: 1px solid var(--border); min-width: 140px; }
+.is-cell:last-child { border-right: none; }
+.is-lbl { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+.is-val { font-size: 16px; font-weight: 500; color: var(--text); margin-bottom: .2rem; }
+.is-sub { font-size: 11px; color: var(--muted); }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="nav-brand">ShopFlow<span>session 3 · dimensional modelling</span></div>
+  <div class="nav-links">
+    <button class="nav-btn active"  onclick="show('recap',this)">Recap</button>
+    <button class="nav-btn" onclick="show('fact',this)">01 · Fact Tables</button>
+    <button class="nav-btn" onclick="show('dim',this)">02 · Dimension Tables</button>
+    <button class="nav-btn" onclick="show('star',this)">03 · Star Schema</button>
+    <button class="nav-btn" onclick="show('snowflake',this)">04 · Snowflake Schema</button>
+    <button class="nav-btn" onclick="show('compare',this)">05 · Comparison</button>
+    <button class="nav-btn" onclick="show('query',this)">06 · Queries</button>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-eyebrow"><span class="hero-dot"></span><span>Data Engineering · Knowledge Transfer · Session 3 of 3</span></div>
+  <h1>Fact Tables, Dimension Tables<br><em>&amp; Schema Design</em></h1>
+  <p class="hero-sub">The building blocks of dimensional modelling — illustrated using ShopFlow, an e-commerce platform. Covers facts, dimensions, star schema, and snowflake schema from the ground up.</p>
+  <div class="topic-strip">
+    <span class="tp-pill" onclick="show('fact',document.querySelectorAll('.nav-btn')[1])">Fact tables</span>
+    <span class="tp-arr">→</span>
+    <span class="tp-pill" onclick="show('dim',document.querySelectorAll('.nav-btn')[2])">Dimension tables</span>
+    <span class="tp-arr">→</span>
+    <span class="tp-pill" onclick="show('star',document.querySelectorAll('.nav-btn')[3])">Star schema</span>
+    <span class="tp-arr">→</span>
+    <span class="tp-pill" onclick="show('snowflake',document.querySelectorAll('.nav-btn')[4])">Snowflake schema</span>
+    <span class="tp-arr">→</span>
+    <span class="tp-pill" onclick="show('compare',document.querySelectorAll('.nav-btn')[5])">Comparison</span>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ═══════════════════════════════ RECAP -->
+<div id="sec-recap" class="section active">
+  <div class="sec-header">
+    <div class="sec-num">00</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Quick recap</div>
+      <div class="sec-title">Where we left off</div>
+      <div class="sec-desc">Two sessions covered the foundation. Today builds directly on top.</div>
+    </div>
+  </div>
+
+  <div class="info-strip">
+    <div class="is-cell"><div class="is-lbl">Session 01</div><div class="is-val">Foundations</div><div class="is-sub">Why modelling, OLTP vs OLAP</div></div>
+    <div class="is-cell"><div class="is-lbl">Session 02</div><div class="is-val">Architecture</div><div class="is-sub">Medallion, staging, serving</div></div>
+    <div class="is-cell"><div class="is-lbl">Session 03</div><div class="is-val" style="color:var(--purple-light)">Today</div><div class="is-sub">Facts, dims, star, snowflake</div></div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem">Session 01 covered</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">Why data modelling exists</div>
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">Conceptual → Logical → Physical layers</div>
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">OLTP: fast writes, day-to-day ops</div>
+        <div style="padding:3px 0">OLAP: fast reads, reporting &amp; analysis</div>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem">Session 02 covered</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">Medallion: Bronze → Silver → Gold</div>
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">Staging layer: raw data before transforms</div>
+        <div style="padding:3px 0;border-bottom:1px solid var(--border)">Serving layer: curated, query-ready data</div>
+        <div style="padding:3px 0">Intro to Dimensional Modelling</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-lbl">Platform context</div>
+    <p><strong>ShopFlow</strong> is the e-commerce platform used throughout this session. Customers browse, add to cart, place orders, and make payments. Each event generates data. Today we see how that data is structured in a dimensional model — the final Gold layer of our warehouse.</p>
+  </div>
+
+  <div class="rule"></div>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:1rem;letter-spacing:.04em">Session outline — click any section to jump</div>
+  <div style="display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div onclick="show('fact',document.querySelectorAll('.nav-btn')[1])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">01</span>
+      <span style="font-size:13px;color:var(--text)">Fact tables</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">What happened — the numbers and events</span>
+    </div>
+    <div onclick="show('dim',document.querySelectorAll('.nav-btn')[2])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">02</span>
+      <span style="font-size:13px;color:var(--text)">Dimension tables</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">Who, what, where, when — the context</span>
+    </div>
+    <div onclick="show('star',document.querySelectorAll('.nav-btn')[3])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">03</span>
+      <span style="font-size:13px;color:var(--text)">Star schema</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">Flat dimensions, fastest queries</span>
+    </div>
+    <div onclick="show('snowflake',document.querySelectorAll('.nav-btn')[4])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">04</span>
+      <span style="font-size:13px;color:var(--text)">Snowflake schema</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">Normalised dims, saves storage</span>
+    </div>
+    <div onclick="show('compare',document.querySelectorAll('.nav-btn')[5])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">05</span>
+      <span style="font-size:13px;color:var(--text)">Star vs Snowflake comparison</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">Side-by-side + when to use each</span>
+    </div>
+    <div onclick="show('query',document.querySelectorAll('.nav-btn')[6])" style="display:flex;align-items:center;gap:14px;padding:11px 16px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:20px">06</span>
+      <span style="font-size:13px;color:var(--text)">Sample queries</span>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">Real SQL on the ShopFlow schema</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ FACT TABLES -->
+<div id="sec-fact" class="section">
+  <div class="sec-header">
+    <div class="sec-num">01</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Fact tables</div>
+      <div class="sec-title">The ledger of your warehouse</div>
+      <div class="sec-desc">A fact table records every measurable business event. One row per transaction, click, sale, or return. It is the centrepiece of any dimensional model.</div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-lbl">Analogy — ShopFlow</div>
+    <p>Think of the cashier's receipt printer at a supermarket. Every time a customer checks out, a new receipt is printed — item, quantity, price, date, store. That growing stack of receipts is your fact table. <strong>It records what happened, not who or where.</strong></p>
+  </div>
+
+  <div class="prose" style="margin-top:1.25rem">A fact table has two kinds of columns. <strong>Foreign keys</strong> are pointers — they link each row to a dimension table that explains the context. <strong>Measures</strong> are the actual business numbers you want to analyse — revenue, quantity, delivery time, discount applied.</div>
+
+  <!-- ShopFlow fact_orders anatomy -->
+  <div class="anatomy-grid">
+    <div class="anat-card">
+      <div class="anat-header">
+        <span class="anat-name" style="color:var(--purple-light)">fact_orders</span>
+        <span class="anat-badge" style="background:var(--purple-dim);color:var(--purple-light)">ShopFlow · Gold layer</span>
+      </div>
+      <div class="col-row"><span class="key-tag pk">PK</span><span class="col-name">order_key</span><span class="col-type">INT64</span><span class="col-note">surrogate</span></div>
+      <div class="col-row" style="background:var(--blue-bg)"><span class="key-tag fk">FK</span><span class="col-name">customer_key</span><span class="col-type">INT64</span><span class="col-note">→ dim_customer</span></div>
+      <div class="col-row" style="background:var(--blue-bg)"><span class="key-tag fk">FK</span><span class="col-name">product_key</span><span class="col-type">INT64</span><span class="col-note">→ dim_product</span></div>
+      <div class="col-row" style="background:var(--blue-bg)"><span class="key-tag fk">FK</span><span class="col-name">date_key</span><span class="col-type">INT64</span><span class="col-note">→ dim_date</span></div>
+      <div class="col-row" style="background:var(--blue-bg)"><span class="key-tag fk">FK</span><span class="col-name">payment_key</span><span class="col-type">INT64</span><span class="col-note">→ dim_payment</span></div>
+      <div class="col-row" style="background:var(--blue-bg)"><span class="key-tag fk">FK</span><span class="col-name">location_key</span><span class="col-type">INT64</span><span class="col-note">→ dim_location</span></div>
+      <div class="col-row" style="background:rgba(46,196,160,0.04)"><span></span><span class="col-name" style="color:var(--teal)">total_amount</span><span class="col-type">FLOAT64</span><span class="col-note">measure</span></div>
+      <div class="col-row" style="background:rgba(46,196,160,0.04)"><span></span><span class="col-name" style="color:var(--teal)">quantity</span><span class="col-type">INT64</span><span class="col-note">measure</span></div>
+      <div class="col-row" style="background:rgba(46,196,160,0.04)"><span></span><span class="col-name" style="color:var(--teal)">discount_amount</span><span class="col-type">FLOAT64</span><span class="col-note">measure</span></div>
+      <div class="col-row" style="background:rgba(46,196,160,0.04)"><span></span><span class="col-name" style="color:var(--teal)">delivery_days</span><span class="col-type">INT64</span><span class="col-note">measure</span></div>
+    </div>
+    <div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem;margin-bottom:10px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:.6rem">Foreign keys</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">Pointers to dimension tables. They do not store names or labels — just IDs. The <span style="color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">customer_key</span> tells you which customer, but the name lives in <span style="color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">dim_customer</span>.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem;margin-bottom:10px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:.6rem">Measures</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">The actual business numbers. These are what gets summed, averaged, counted. <span style="color:var(--teal);font-family:'DM Mono',monospace;font-size:11px">total_amount</span>, <span style="color:var(--teal);font-family:'DM Mono',monospace;font-size:11px">quantity</span>, <span style="color:var(--teal);font-family:'DM Mono',monospace;font-size:11px">discount_amount</span> are all measures.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem">Characteristics</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          <div style="padding:3px 0;border-bottom:1px solid var(--border)">Billions of rows — grows every minute</div>
+          <div style="padding:3px 0;border-bottom:1px solid var(--border)">Append-only — rows are added, rarely updated</div>
+          <div style="padding:3px 0;border-bottom:1px solid var(--border)">Mostly numbers + IDs, minimal free text</div>
+          <div style="padding:3px 0">Partitioned by date for query performance</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+  <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:.75rem">Three types of fact tables</div>
+  <div class="fact-types">
+    <div class="ft-card c-purple">
+      <div class="ft-name">Transaction fact</div>
+      <div class="ft-desc">One row per event. The most common type. Grows constantly as events happen.</div>
+      <div class="ft-eg">fact_orders: every order placed on ShopFlow</div>
+    </div>
+    <div class="ft-card c-teal">
+      <div class="ft-name">Snapshot fact</div>
+      <div class="ft-desc">One row per time period. Captures a state at a point in time — balances, inventory counts.</div>
+      <div class="ft-eg">fact_inventory_daily: stock level per product per day</div>
+    </div>
+    <div class="ft-card c-amber">
+      <div class="ft-name">Accumulating fact</div>
+      <div class="ft-desc">Tracks a process through multiple stages. The same row is updated as it progresses.</div>
+      <div class="ft-eg">fact_order_lifecycle: placed → packed → shipped → delivered</div>
+    </div>
+  </div>
+
+  <!-- Visual: fact table rows -->
+  <div class="svg-card">
+    <svg width="100%" viewBox="0 0 680 220">
+      <!-- Header row -->
+      <rect x="20" y="20" width="640" height="32" rx="4" fill="rgba(124,111,224,0.18)" stroke="rgba(124,111,224,0.3)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#A99EEE" x="44" y="41" dominant-baseline="central" font-weight="500">order_key</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="148" y="41" dominant-baseline="central">customer_key</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="272" y="41" dominant-baseline="central">product_key</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="376" y="41" dominant-baseline="central">date_key</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="464" y="41" dominant-baseline="central">total_amount</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="580" y="41" dominant-baseline="central">qty</text>
+
+      <!-- Row 1 -->
+      <rect x="20" y="54" width="640" height="28" rx="0" fill="rgba(255,255,255,0.012)" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#6B7080" x="44" y="68" dominant-baseline="central">10001</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="148" y="68" dominant-baseline="central">88</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="272" y="68" dominant-baseline="central">334</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="376" y="68" dominant-baseline="central">20240115</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="464" y="68" dominant-baseline="central">1299.00</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="580" y="68" dominant-baseline="central">1</text>
+
+      <!-- Row 2 -->
+      <rect x="20" y="84" width="640" height="28" rx="0" fill="transparent" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#6B7080" x="44" y="98" dominant-baseline="central">10002</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="148" y="98" dominant-baseline="central">204</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="272" y="98" dominant-baseline="central">117</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="376" y="98" dominant-baseline="central">20240115</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="464" y="98" dominant-baseline="central">3450.00</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="580" y="98" dominant-baseline="central">2</text>
+
+      <!-- Row 3 -->
+      <rect x="20" y="114" width="640" height="28" rx="0" fill="rgba(255,255,255,0.012)" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#6B7080" x="44" y="128" dominant-baseline="central">10003</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="148" y="128" dominant-baseline="central">88</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="272" y="128" dominant-baseline="central">89</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#5AA4E8" x="376" y="128" dominant-baseline="central">20240116</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="464" y="128" dominant-baseline="central">899.00</text>
+      <text font-family="'DM Mono',monospace" font-size="11" fill="#2EC4A0" x="580" y="128" dominant-baseline="central">1</text>
+
+      <!-- Row n -->
+      <text font-family="'DM Mono',monospace" font-size="12" fill="#3D4250" x="340" y="166" text-anchor="middle" dominant-baseline="central">· · · billions more rows · · ·</text>
+
+      <!-- Legend -->
+      <rect x="20" y="185" width="10" height="10" rx="2" fill="rgba(90,164,232,0.25)"/>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#6B7080" x="34" y="190" dominant-baseline="central">foreign keys (point to dims)</text>
+      <rect x="240" y="185" width="10" height="10" rx="2" fill="rgba(46,196,160,0.25)"/>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#6B7080" x="254" y="190" dominant-baseline="central">measures (the numbers)</text>
+    </svg>
+    <div class="svg-cap">fact_orders — every row is one ShopFlow order. Numbers live here; names and labels live in dimension tables.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ DIMENSION TABLES -->
+<div id="sec-dim" class="section">
+  <div class="sec-header">
+    <div class="sec-num">02</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Dimension tables</div>
+      <div class="sec-title">The context around every event</div>
+      <div class="sec-desc">If fact tables answer "what happened", dimension tables answer who, what, where, when, and how. They are the reference books of the warehouse.</div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-lbl">Analogy — ShopFlow</div>
+    <p>The fact table says: <strong>customer_key=88, product_key=334, amount=₹1299</strong>. The dimension tables decode this: customer 88 is <strong>Priya Sharma from Bengaluru, Gold tier</strong>. Product 334 is <strong>Noise Buds Z1, Electronics, Sony</strong>. That is dimension data.</p>
+  </div>
+
+  <div class="rule"></div>
+  <div class="prose">ShopFlow has five dimension tables. Together they wrap around <span style="color:var(--purple-light);font-family:'DM Mono',monospace;font-size:12px">fact_orders</span> and answer every analytical question an analyst might ask.</div>
+
+  <div class="dim-grid">
+    <div class="dim-card">
+      <div class="dim-card-header" style="background:var(--teal-bg);border-bottom-color:rgba(46,196,160,0.15)">
+        <span class="dim-card-name" style="color:var(--teal)">dim_customer</span>
+        <span class="dim-card-badge" style="background:var(--teal-dim);color:var(--teal)">SCD Type 2</span>
+      </div>
+      <div class="dim-attr"><span>customer_key</span><span style="color:var(--dim)">PK surrogate</span></div>
+      <div class="dim-attr"><span>customer_id</span><span style="color:var(--dim)">natural key</span></div>
+      <div class="dim-attr"><span>full_name</span><span style="color:var(--dim)">identity</span></div>
+      <div class="dim-attr"><span>email · phone</span><span style="color:var(--dim)">contact</span></div>
+      <div class="dim-attr"><span>city · state</span><span style="color:var(--dim)">location</span></div>
+      <div class="dim-attr"><span>tier</span><span style="color:var(--amber)">SCD tracked</span></div>
+      <div class="dim-attr"><span>segment</span><span style="color:var(--dim)">new/returning/vip</span></div>
+      <div class="dim-attr"><span>is_current</span><span style="color:var(--dim)">SCD flag</span></div>
+    </div>
+
+    <div class="dim-card">
+      <div class="dim-card-header" style="background:var(--amber-bg);border-bottom-color:rgba(232,168,74,0.15)">
+        <span class="dim-card-name" style="color:var(--amber)">dim_product</span>
+        <span class="dim-card-badge" style="background:var(--amber-dim);color:var(--amber)">SCD Type 1</span>
+      </div>
+      <div class="dim-attr"><span>product_key</span><span style="color:var(--dim)">PK surrogate</span></div>
+      <div class="dim-attr"><span>product_id</span><span style="color:var(--dim)">natural key</span></div>
+      <div class="dim-attr"><span>name · SKU</span><span style="color:var(--dim)">identity</span></div>
+      <div class="dim-attr"><span>brand</span><span style="color:var(--dim)">e.g. Sony, Nike</span></div>
+      <div class="dim-attr"><span>category</span><span style="color:var(--dim)">Electronics, Fashion</span></div>
+      <div class="dim-attr"><span>subcategory</span><span style="color:var(--dim)">Earphones, Shirts</span></div>
+      <div class="dim-attr"><span>list_price</span><span style="color:var(--dim)">overwritten on update</span></div>
+    </div>
+
+    <div class="dim-card">
+      <div class="dim-card-header" style="background:var(--blue-bg);border-bottom-color:rgba(90,164,232,0.15)">
+        <span class="dim-card-name" style="color:var(--blue)">dim_date</span>
+        <span class="dim-card-badge" style="background:var(--blue-dim);color:var(--blue)">static</span>
+      </div>
+      <div class="dim-attr"><span>date_key</span><span style="color:var(--dim)">YYYYMMDD</span></div>
+      <div class="dim-attr"><span>full_date</span><span style="color:var(--dim)">2024-01-15</span></div>
+      <div class="dim-attr"><span>day · month · year</span><span style="color:var(--dim)">calendar</span></div>
+      <div class="dim-attr"><span>quarter · week_num</span><span style="color:var(--dim)">periods</span></div>
+      <div class="dim-attr"><span>day_name</span><span style="color:var(--dim)">Monday … Sunday</span></div>
+      <div class="dim-attr"><span>is_weekend</span><span style="color:var(--dim)">boolean flag</span></div>
+      <div class="dim-attr"><span>is_holiday</span><span style="color:var(--dim)">boolean flag</span></div>
+    </div>
+
+    <div class="dim-card">
+      <div class="dim-card-header" style="background:var(--coral-bg);border-bottom-color:rgba(232,113,90,0.15)">
+        <span class="dim-card-name" style="color:var(--coral)">dim_payment</span>
+        <span class="dim-card-badge" style="background:var(--coral-dim);color:var(--coral)">SCD Type 1</span>
+      </div>
+      <div class="dim-attr"><span>payment_key</span><span style="color:var(--dim)">PK surrogate</span></div>
+      <div class="dim-attr"><span>method</span><span style="color:var(--dim)">UPI/card/wallet/COD</span></div>
+      <div class="dim-attr"><span>gateway</span><span style="color:var(--dim)">Razorpay, Stripe</span></div>
+      <div class="dim-attr"><span>status</span><span style="color:var(--dim)">success/failed</span></div>
+      <div class="dim-attr"><span>amount</span><span style="color:var(--dim)">payment value</span></div>
+    </div>
+
+    <div class="dim-card">
+      <div class="dim-card-header" style="background:var(--green-bg);border-bottom-color:rgba(90,206,138,0.15)">
+        <span class="dim-card-name" style="color:var(--green)">dim_location</span>
+        <span class="dim-card-badge" style="background:var(--green-dim);color:var(--green)">static ref</span>
+      </div>
+      <div class="dim-attr"><span>location_key</span><span style="color:var(--dim)">PK surrogate</span></div>
+      <div class="dim-attr"><span>pincode</span><span style="color:var(--dim)">delivery pincode</span></div>
+      <div class="dim-attr"><span>city · district</span><span style="color:var(--dim)">geography</span></div>
+      <div class="dim-attr"><span>state · region</span><span style="color:var(--dim)">North/South/East/West</span></div>
+      <div class="dim-attr"><span>tier_city</span><span style="color:var(--dim)">Tier 1/2/3</span></div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <!-- Fact vs Dim comparison -->
+  <div class="cmp-table">
+    <div class="cmp-header" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="cmp-cell"></div>
+      <div class="cmp-cell">Fact table</div>
+      <div class="cmp-cell">Dimension table</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:1fr 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Records</div>
+      <div class="cmp-cell" style="color:var(--muted)">Events / transactions</div>
+      <div class="cmp-cell" style="color:var(--muted)">Descriptive context</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:1fr 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Contains</div>
+      <div class="cmp-cell" style="color:var(--muted)">Numbers (measures) + FKs</div>
+      <div class="cmp-cell" style="color:var(--muted)">Text, labels, categories</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:1fr 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Size</div>
+      <div class="cmp-cell" style="color:var(--muted)">Billions of rows</div>
+      <div class="cmp-cell" style="color:var(--muted)">Thousands to millions</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:1fr 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Growth</div>
+      <div class="cmp-cell" style="color:var(--muted)">Constantly (append-only)</div>
+      <div class="cmp-cell" style="color:var(--muted)">Slowly (SCD patterns)</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:1fr 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">ShopFlow example</div>
+      <div class="cmp-cell" style="color:var(--purple-light);font-family:'DM Mono',monospace;font-size:11px">fact_orders</div>
+      <div class="cmp-cell" style="color:var(--teal);font-family:'DM Mono',monospace;font-size:11px">dim_customer, dim_date</div>
+    </div>
+  </div>
+  <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:.5rem">Click any row to highlight it</div>
+</div>
+
+<!-- ═══════════════════════════════ STAR SCHEMA -->
+<div id="sec-star" class="section">
+  <div class="sec-header">
+    <div class="sec-num">03</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Star schema</div>
+      <div class="sec-title">The default choice for analytics</div>
+      <div class="sec-desc">One fact table at the centre. Dimension tables connect directly to it — flat, denormalised, no sub-tables. The shape looks like a star.</div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-lbl">How it works</div>
+    <p>Imagine a wheel. The hub is <strong>fact_orders</strong>. Each spoke leads to a dimension table — customer, product, date, payment, location. <strong>Every dimension is one join away from the fact table.</strong> That is what makes star schemas fast.</p>
+  </div>
+
+  <div class="svg-card">
+    <svg width="100%" viewBox="0 0 680 380">
+      <defs>
+        <marker id="a-star" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#3D4250" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- Fact centre -->
+      <rect x="230" y="120" width="220" height="140" rx="8" fill="rgba(124,111,224,0.12)" stroke="rgba(124,111,224,0.5)" stroke-width="1"/>
+      <rect x="230" y="120" width="220" height="30" rx="8" fill="rgba(124,111,224,0.22)"/>
+      <rect x="230" y="140" width="220" height="10" fill="rgba(124,111,224,0.22)"/>
+      <text font-family="'DM Mono',monospace" font-size="13" font-weight="500" fill="#A99EEE" x="340" y="140" text-anchor="middle" dominant-baseline="central">fact_orders</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="245" y="168" dominant-baseline="central">customer_key  FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="245" y="184" dominant-baseline="central">product_key   FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="245" y="200" dominant-baseline="central">date_key      FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="245" y="216" dominant-baseline="central">payment_key   FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#2EC4A0" x="245" y="236" dominant-baseline="central">total_amount · qty · discount</text>
+
+      <!-- dim_customer top-left -->
+      <rect x="20" y="18" width="156" height="72" rx="6" fill="rgba(46,196,160,0.08)" stroke="rgba(46,196,160,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#2EC4A0" x="98" y="38" text-anchor="middle" dominant-baseline="central">dim_customer</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="34" y="56" dominant-baseline="central">customer_key PK</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="34" y="70" dominant-baseline="central">name · city · tier · segment</text>
+      <line x1="176" y1="62" x2="230" y2="155" stroke="rgba(46,196,160,0.5)" stroke-width="0.5" marker-end="url(#a-star)"/>
+
+      <!-- dim_product top-right -->
+      <rect x="504" y="18" width="156" height="72" rx="6" fill="rgba(232,168,74,0.08)" stroke="rgba(232,168,74,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#E8A84A" x="582" y="38" text-anchor="middle" dominant-baseline="central">dim_product</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="518" y="56" dominant-baseline="central">product_key PK</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="518" y="70" dominant-baseline="central">name · brand · category</text>
+      <line x1="504" y1="62" x2="450" y2="155" stroke="rgba(232,168,74,0.5)" stroke-width="0.5" marker-end="url(#a-star)"/>
+
+      <!-- dim_date bottom-left -->
+      <rect x="20" y="290" width="156" height="72" rx="6" fill="rgba(90,164,232,0.08)" stroke="rgba(90,164,232,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#5AA4E8" x="98" y="310" text-anchor="middle" dominant-baseline="central">dim_date</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="34" y="328" dominant-baseline="central">date_key PK</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="34" y="342" dominant-baseline="central">day · month · qtr · is_weekend</text>
+      <line x1="176" y1="326" x2="230" y2="235" stroke="rgba(90,164,232,0.5)" stroke-width="0.5" marker-end="url(#a-star)"/>
+
+      <!-- dim_payment bottom-right -->
+      <rect x="504" y="290" width="156" height="72" rx="6" fill="rgba(232,113,90,0.08)" stroke="rgba(232,113,90,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#E8715A" x="582" y="310" text-anchor="middle" dominant-baseline="central">dim_payment</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="518" y="328" dominant-baseline="central">payment_key PK</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="518" y="342" dominant-baseline="central">method · gateway · status</text>
+      <line x1="504" y1="326" x2="450" y2="235" stroke="rgba(232,113,90,0.5)" stroke-width="0.5" marker-end="url(#a-star)"/>
+
+      <!-- dim_location right-mid -->
+      <rect x="504" y="162" width="156" height="58" rx="6" fill="rgba(90,206,138,0.08)" stroke="rgba(90,206,138,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#5ACE8A" x="582" y="182" text-anchor="middle" dominant-baseline="central">dim_location</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="518" y="200" dominant-baseline="central">city · state · region · tier</text>
+      <line x1="504" y1="191" x2="452" y2="197" stroke="rgba(90,206,138,0.5)" stroke-width="0.5" marker-end="url(#a-star)"/>
+
+      <!-- label: one join away -->
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#3D4250" x="340" y="362" text-anchor="middle">Every dimension is exactly one JOIN away from the fact table</text>
+    </svg>
+    <div class="svg-cap">ShopFlow star schema — fact_orders at the centre, five dimension tables as direct spokes</div>
+  </div>
+
+  <div class="schema-props">
+    <div class="sp-row"><span class="sp-key">Structure</span><span class="sp-val">Fact table + flat (denormalised) dimension tables</span></div>
+    <div class="sp-row"><span class="sp-key">Joins per query</span><span class="sp-val"><span class="badge-pill bp-fast">Few — 1 per dimension</span></span></div>
+    <div class="sp-row"><span class="sp-key">Query speed</span><span class="sp-val"><span class="badge-pill bp-fast">Fast</span></span></div>
+    <div class="sp-row"><span class="sp-key">Storage</span><span class="sp-val">Higher — some attribute data repeats across rows</span></div>
+    <div class="sp-row"><span class="sp-key">Complexity</span><span class="sp-val"><span class="badge-pill bp-low">Low — easy to understand</span></span></div>
+    <div class="sp-row"><span class="sp-key">BI tool support</span><span class="sp-val">Excellent — Power BI, Tableau, Looker are optimised for star</span></div>
+    <div class="sp-row"><span class="sp-key">ShopFlow example</span><span class="sp-val" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--purple-light)">fact_orders JOIN dim_customer — one hop, done</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SNOWFLAKE SCHEMA -->
+<div id="sec-snowflake" class="section">
+  <div class="sec-header">
+    <div class="sec-num">04</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Snowflake schema</div>
+      <div class="sec-title">Normalised for scale and consistency</div>
+      <div class="sec-desc">Same core idea as star, but dimension tables are broken down into sub-tables. A product links to a category, which links to a department. The branching shape looks like a snowflake.</div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-lbl">How it differs</div>
+    <p>In the star schema, <strong>dim_product</strong> contains <span style="color:var(--amber);font-style:normal;font-family:'DM Mono',monospace;font-size:12px">category = "Electronics"</span> repeated across thousands of rows. In snowflake, <span style="color:var(--amber);font-style:normal;font-family:'DM Mono',monospace;font-size:12px">"Electronics"</span> lives <strong>once</strong> in <span style="color:var(--teal);font-style:normal;font-family:'DM Mono',monospace;font-size:12px">dim_category</span>, and dim_product just holds a foreign key pointing to it.</p>
+  </div>
+
+  <div class="svg-card">
+    <svg width="100%" viewBox="0 0 680 380">
+      <defs>
+        <marker id="a-snow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#3D4250" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- Fact centre -->
+      <rect x="240" y="140" width="200" height="100" rx="8" fill="rgba(124,111,224,0.12)" stroke="rgba(124,111,224,0.5)" stroke-width="1"/>
+      <rect x="240" y="140" width="200" height="28" rx="8" fill="rgba(124,111,224,0.22)"/>
+      <rect x="240" y="158" width="200" height="10" fill="rgba(124,111,224,0.22)"/>
+      <text font-family="'DM Mono',monospace" font-size="12" font-weight="500" fill="#A99EEE" x="340" y="158" text-anchor="middle" dominant-baseline="central">fact_orders</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="254" y="184" dominant-baseline="central">customer_key FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#5AA4E8" x="254" y="200" dominant-baseline="central">product_key  FK</text>
+      <text font-family="'DM Mono',monospace" font-size="10" fill="#2EC4A0" x="254" y="220" dominant-baseline="central">total_amount · qty</text>
+
+      <!-- Level 1 dims -->
+      <!-- dim_product -->
+      <rect x="28" y="80" width="130" height="54" rx="6" fill="rgba(232,168,74,0.08)" stroke="rgba(232,168,74,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#E8A84A" x="93" y="98" text-anchor="middle" dominant-baseline="central">dim_product</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="40" y="116" dominant-baseline="central">product_key · name</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#5AA4E8" x="40" y="128" dominant-baseline="central">category_key FK</text>
+      <line x1="158" y1="114" x2="240" y2="172" stroke="rgba(232,168,74,0.5)" stroke-width="0.5" marker-end="url(#a-snow)"/>
+
+      <!-- dim_customer -->
+      <rect x="28" y="246" width="130" height="54" rx="6" fill="rgba(46,196,160,0.08)" stroke="rgba(46,196,160,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#2EC4A0" x="93" y="264" text-anchor="middle" dominant-baseline="central">dim_customer</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="40" y="282" dominant-baseline="central">customer_key · name</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#5AA4E8" x="40" y="294" dominant-baseline="central">city_key FK</text>
+      <line x1="158" y1="268" x2="240" y2="210" stroke="rgba(46,196,160,0.5)" stroke-width="0.5" marker-end="url(#a-snow)"/>
+
+      <!-- Level 2 sub-tables -->
+      <!-- dim_category -->
+      <rect x="200" y="18" width="110" height="44" rx="5" fill="rgba(232,168,74,0.05)" stroke="rgba(232,168,74,0.25)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="10" font-weight="500" fill="#E8A84A" x="255" y="37" text-anchor="middle" dominant-baseline="central">dim_category</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="210" y="52" dominant-baseline="central">cat_key · name · dept_key</text>
+      <line x1="158" y1="90" x2="200" y2="46" stroke="rgba(232,168,74,0.3)" stroke-width="0.5" stroke-dasharray="4 2" marker-end="url(#a-snow)"/>
+
+      <!-- dim_dept -->
+      <rect x="56" y="18" width="110" height="44" rx="5" fill="rgba(232,168,74,0.04)" stroke="rgba(232,168,74,0.2)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="10" font-weight="500" fill="#E8A84A" x="111" y="37" text-anchor="middle" dominant-baseline="central">dim_department</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="66" y="52" dominant-baseline="central">dept_key · dept_name</text>
+      <line x1="200" y1="40" x2="166" y2="40" stroke="rgba(232,168,74,0.25)" stroke-width="0.5" stroke-dasharray="4 2" marker-end="url(#a-snow)"/>
+
+      <!-- dim_city -->
+      <rect x="28" y="336" width="110" height="44" rx="5" fill="rgba(46,196,160,0.05)" stroke="rgba(46,196,160,0.25)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="10" font-weight="500" fill="#2EC4A0" x="83" y="355" text-anchor="middle" dominant-baseline="central">dim_city</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="38" y="369" dominant-baseline="central">city_key · city · state_key</text>
+      <line x1="83" y1="300" x2="83" y2="334" stroke="rgba(46,196,160,0.3)" stroke-width="0.5" stroke-dasharray="4 2" marker-end="url(#a-snow)"/>
+
+      <!-- dim_state -->
+      <rect x="158" y="336" width="110" height="44" rx="5" fill="rgba(46,196,160,0.04)" stroke="rgba(46,196,160,0.2)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="10" font-weight="500" fill="#2EC4A0" x="213" y="355" text-anchor="middle" dominant-baseline="central">dim_state</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="168" y="369" dominant-baseline="central">state_key · state · region</text>
+      <line x1="137" y1="358" x2="158" y2="358" stroke="rgba(46,196,160,0.25)" stroke-width="0.5" stroke-dasharray="4 2" marker-end="url(#a-snow)"/>
+
+      <!-- Right side dims (flat in this example) -->
+      <rect x="522" y="80" width="136" height="54" rx="6" fill="rgba(90,164,232,0.08)" stroke="rgba(90,164,232,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#5AA4E8" x="590" y="98" text-anchor="middle" dominant-baseline="central">dim_date</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="534" y="116" dominant-baseline="central">date_key · day · month</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="534" y="128" dominant-baseline="central">quarter · year · flags</text>
+      <line x1="522" y1="110" x2="440" y2="172" stroke="rgba(90,164,232,0.5)" stroke-width="0.5" marker-end="url(#a-snow)"/>
+
+      <rect x="522" y="246" width="136" height="54" rx="6" fill="rgba(232,113,90,0.08)" stroke="rgba(232,113,90,0.35)" stroke-width="0.5"/>
+      <text font-family="'DM Mono',monospace" font-size="11" font-weight="500" fill="#E8715A" x="590" y="264" text-anchor="middle" dominant-baseline="central">dim_payment</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="534" y="282" dominant-baseline="central">payment_key · method</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#6B7080" x="534" y="294" dominant-baseline="central">gateway · status</text>
+      <line x1="522" y1="268" x2="440" y2="220" stroke="rgba(232,113,90,0.5)" stroke-width="0.5" marker-end="url(#a-snow)"/>
+
+      <!-- Labels -->
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#3D4250" x="185" y="75" text-anchor="middle">product → category → dept</text>
+      <text font-family="'DM Mono',monospace" font-size="9" fill="#3D4250" x="125" y="326" text-anchor="middle">customer → city → state</text>
+    </svg>
+    <div class="svg-cap">ShopFlow snowflake — product normalises into category → department; customer normalises into city → state</div>
+  </div>
+
+  <div class="schema-props">
+    <div class="sp-row"><span class="sp-key">Structure</span><span class="sp-val">Fact + normalised dimension sub-tables (2–3 levels deep)</span></div>
+    <div class="sp-row"><span class="sp-key">Joins per query</span><span class="sp-val"><span class="badge-pill bp-slow">Many — traverses sub-tables</span></span></div>
+    <div class="sp-row"><span class="sp-key">Query speed</span><span class="sp-val"><span class="badge-pill bp-slow">Slower</span></span></div>
+    <div class="sp-row"><span class="sp-key">Storage</span><span class="sp-val">Lower — no duplicated attribute data</span></div>
+    <div class="sp-row"><span class="sp-key">Complexity</span><span class="sp-val"><span class="badge-pill bp-high">Higher — more tables to navigate</span></span></div>
+    <div class="sp-row"><span class="sp-key">Data integrity</span><span class="sp-val">Stronger — one source of truth per attribute</span></div>
+    <div class="sp-row"><span class="sp-key">ShopFlow example</span><span class="sp-val" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--teal)">fact → dim_product → dim_category → dim_dept (3 hops)</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ COMPARISON -->
+<div id="sec-compare" class="section">
+  <div class="sec-header">
+    <div class="sec-num">05</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Star vs snowflake</div>
+      <div class="sec-title">Choosing the right schema</div>
+      <div class="sec-desc">Neither is universally better. The decision comes down to what your team is optimising for — query speed, storage, or data integrity.</div>
+    </div>
+  </div>
+
+  <div class="cmp-table">
+    <div class="cmp-header" style="grid-template-columns:130px 1fr 1fr">
+      <div class="cmp-cell">Aspect</div>
+      <div class="cmp-cell">Star schema</div>
+      <div class="cmp-cell">Snowflake schema</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Structure</div>
+      <div class="cmp-cell" style="color:var(--muted)">Fact + flat dimension tables</div>
+      <div class="cmp-cell" style="color:var(--muted)">Fact + normalised sub-tables</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Joins</div>
+      <div class="cmp-cell"><span class="badge-pill bp-fast">Fewer — direct to fact</span></div>
+      <div class="cmp-cell"><span class="badge-pill bp-slow">More — traverses hierarchy</span></div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Query speed</div>
+      <div class="cmp-cell"><span class="badge-pill bp-fast">Faster</span></div>
+      <div class="cmp-cell"><span class="badge-pill bp-slow">Slower</span></div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Storage</div>
+      <div class="cmp-cell" style="color:var(--muted)">More — some duplication</div>
+      <div class="cmp-cell" style="color:var(--muted)">Less — no redundancy</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Complexity</div>
+      <div class="cmp-cell"><span class="badge-pill bp-low">Low</span></div>
+      <div class="cmp-cell"><span class="badge-pill bp-high">Higher</span></div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Integrity</div>
+      <div class="cmp-cell" style="color:var(--muted)">Lower — data can repeat</div>
+      <div class="cmp-cell" style="color:var(--muted)">Higher — normalised</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">BI tools</div>
+      <div class="cmp-cell" style="color:var(--muted)">Excellent native support</div>
+      <div class="cmp-cell" style="color:var(--muted)">Good, needs more setup</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">Maintenance</div>
+      <div class="cmp-cell" style="color:var(--muted)">Simpler</div>
+      <div class="cmp-cell" style="color:var(--muted)">More discipline needed</div>
+    </div>
+    <div class="cmp-row-item" style="grid-template-columns:130px 1fr 1fr" onclick="hlRow(this)">
+      <div class="cmp-cell">ShopFlow fit</div>
+      <div class="cmp-cell" style="color:var(--purple-light);font-family:'DM Mono',monospace;font-size:11px">Gold layer — analyst dashboards</div>
+      <div class="cmp-cell" style="color:var(--teal);font-family:'DM Mono',monospace;font-size:11px">If product hierarchy grows complex</div>
+    </div>
+  </div>
+  <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:.5rem">Click any row to highlight it</div>
+
+  <div class="rule"></div>
+
+  <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:.75rem">When to use each</div>
+  <div class="when-list">
+    <div class="when-row"><span class="wbadge wb-star">Star</span><span class="when-txt">Building a revenue or operations dashboard — analysts need fast, intuitive queries</span></div>
+    <div class="when-row"><span class="wbadge wb-star">Star</span><span class="when-txt">BI tools like Power BI, Tableau, Looker — they are optimised for star-like structures</span></div>
+    <div class="when-row"><span class="wbadge wb-star">Star</span><span class="when-txt">Small to mid-size teams — simpler to build, maintain, and onboard new members</span></div>
+    <div class="when-row"><span class="wbadge wb-star">Star</span><span class="when-txt">Default choice for a new warehouse — start here, evolve later if needed</span></div>
+    <div class="when-row"><span class="wbadge wb-snow">Snowflake</span><span class="when-txt">Very large dataset where storage cost matters — normalisation removes redundant data</span></div>
+    <div class="when-row"><span class="wbadge wb-snow">Snowflake</span><span class="when-txt">Data must be strictly consistent — one source of truth per attribute (e.g. product hierarchy)</span></div>
+    <div class="when-row"><span class="wbadge wb-snow">Snowflake</span><span class="when-txt">Enterprise warehouse with multiple teams — better governance, avoids update anomalies</span></div>
+    <div class="when-row"><span class="wbadge wb-snow">Snowflake</span><span class="when-txt">Deep hierarchies (product → subcategory → category → department) — normalisation pays off</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ QUERIES -->
+<div id="sec-query" class="section">
+  <div class="sec-header">
+    <div class="sec-num">06</div>
+    <div class="sec-meta">
+      <div class="sec-tag">Sample queries</div>
+      <div class="sec-title">The schema in action</div>
+      <div class="sec-desc">Real SQL on the ShopFlow star schema. Each query answers a business question an analyst or ML engineer would actually ask.</div>
+    </div>
+  </div>
+
+  <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.75rem">Revenue by city — Q1 2024</div>
+  <div class="query-block qb-purple">
+    <span class="kw">SELECT</span> dc.city, <span class="fn">SUM</span>(fo.total_amount) <span class="kw">AS</span> revenue, <span class="fn">COUNT</span>(*) <span class="kw">AS</span> orders<br>
+    <span class="kw">FROM</span> fact_orders fo<br>
+    <span class="kw">JOIN</span> dim_customer dc <span class="kw">USING</span> (customer_key)<br>
+    <span class="kw">JOIN</span> dim_date dd <span class="kw">USING</span> (date_key)<br>
+    <span class="kw">WHERE</span> dd.year = <span class="str">2024</span> <span class="kw">AND</span> dd.quarter = <span class="str">1</span><br>
+    <span class="kw">GROUP BY</span> dc.city <span class="kw">ORDER BY</span> revenue <span class="kw">DESC LIMIT</span> <span class="str">10</span><span class="cmt">  -- top 10 cities by revenue</span>
+  </div>
+
+  <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:.75rem 0">Top product categories by order volume — last 30 days</div>
+  <div class="query-block qb-teal">
+    <span class="kw">SELECT</span> dp.category, dp.brand, <span class="fn">COUNT</span>(*) <span class="kw">AS</span> orders, <span class="fn">AVG</span>(fo.total_amount) <span class="kw">AS</span> avg_order_value<br>
+    <span class="kw">FROM</span> fact_orders fo<br>
+    <span class="kw">JOIN</span> dim_product dp <span class="kw">USING</span> (product_key)<br>
+    <span class="kw">JOIN</span> dim_date dd <span class="kw">USING</span> (date_key)<br>
+    <span class="kw">WHERE</span> dd.full_date >= <span class="fn">DATE_SUB</span>(<span class="fn">CURRENT_DATE</span>(), <span class="kw">INTERVAL</span> <span class="str">30 DAY</span>)<br>
+    <span class="kw">GROUP BY</span> dp.category, dp.brand <span class="kw">ORDER BY</span> orders <span class="kw">DESC</span>
+  </div>
+
+  <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:.75rem 0">Payment method split — by customer tier</div>
+  <div class="query-block qb-purple">
+    <span class="kw">SELECT</span> dc.tier, dpay.method, <span class="fn">COUNT</span>(*) <span class="kw">AS</span> txns, <span class="fn">SUM</span>(fo.total_amount) <span class="kw">AS</span> gmv<br>
+    <span class="kw">FROM</span> fact_orders fo<br>
+    <span class="kw">JOIN</span> dim_customer dc <span class="kw">USING</span> (customer_key)<br>
+    <span class="kw">JOIN</span> dim_payment dpay <span class="kw">USING</span> (payment_key)<br>
+    <span class="kw">GROUP BY</span> dc.tier, dpay.method<br>
+    <span class="kw">ORDER BY</span> dc.tier, gmv <span class="kw">DESC</span><span class="cmt">  -- which payment methods do Gold/Platinum customers prefer?</span>
+  </div>
+
+  <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:.75rem 0">Weekend vs weekday orders — by region</div>
+  <div class="query-block qb-teal">
+    <span class="kw">SELECT</span> dl.region, dd.is_weekend, <span class="fn">COUNT</span>(*) <span class="kw">AS</span> orders, <span class="fn">SUM</span>(fo.total_amount) <span class="kw">AS</span> revenue<br>
+    <span class="kw">FROM</span> fact_orders fo<br>
+    <span class="kw">JOIN</span> dim_location dl <span class="kw">USING</span> (location_key)<br>
+    <span class="kw">JOIN</span> dim_date dd <span class="kw">USING</span> (date_key)<br>
+    <span class="kw">GROUP BY</span> dl.region, dd.is_weekend<span class="cmt">  -- do southern regions shop more on weekends?</span>
+  </div>
+
+  <div class="rule"></div>
+
+  <!-- Final takeaways -->
+  <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:.25rem">Key takeaways</div>
+  <div class="tl">
+    <div class="tl-row">
+      <div class="tl-num">01</div>
+      <div class="tl-body">
+        <h4>Fact tables record what happened</h4>
+        <p>Numbers and foreign keys only. Large, append-heavy, grows constantly. Three types: transaction, snapshot, and accumulating.</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-num">02</div>
+      <div class="tl-body">
+        <h4>Dimension tables explain the context</h4>
+        <p>Who, what, where, when. Text-rich, smaller, changes slowly. They make the numbers in fact tables meaningful.</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-num">03</div>
+      <div class="tl-body">
+        <h4>Star schema is the default</h4>
+        <p>Flat dimensions, one join per dimension, fast queries. Ideal for most analytics, BI tools, and teams starting out.</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-num">04</div>
+      <div class="tl-body">
+        <h4>Snowflake when scale and consistency matter</h4>
+        <p>Normalised sub-tables, lower storage, stricter integrity. More complex to build and query — use when the trade-off is worth it.</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-num">05</div>
+      <div class="tl-body">
+        <h4>Design is about making data easy to trust and query</h4>
+        <p>A well-designed schema means analysts spend less time wrangling data and more time finding insights.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  const map = {recap:0,fact:1,dim:2,star:3,snowflake:4,compare:5,query:6};
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.nav-btn')[map[id]].classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function hlRow(el) {
+  const was = el.classList.contains('hl');
+  el.closest('.cmp-table').querySelectorAll('.cmp-row-item').forEach(r => r.classList.remove('hl'));
+  if (!was) el.classList.add('hl');
+}
+</script>
+</body>
+</html>
